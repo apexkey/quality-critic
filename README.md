@@ -1,0 +1,2 @@
+# quality-critic
+QA / validation
