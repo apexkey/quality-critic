@@ -1,0 +1,56 @@
+# ============================================================================
+# APEX KEY — SYSTEM A | quality-critic — validation runner
+# ----------------------------------------------------------------------------
+# QA = validation/inspection layer. Produces `validation_status`.
+#      It has NO approval authority (Four-Way Separation). The CEO approves.
+# Tasks:
+#   * LLM-as-a-Judge scoring (F/C/L weighted, minus hallucination penalty)
+#   * Δ expected-vs-actual variance engine
+#   * Cheap red-team / static security check
+#   * routes "pass" -> CEO (ready-for-approval) or "fail" -> CTO (feedback loop)
+# ============================================================================
+name: validate
+
+on:
+  workflow_dispatch:
+    inputs:
+      trace_id:      { description: trace id, required: true }
+      workspace_id:  { description: workspace id, required: true }
+      tenant:        { description: tenant, required: false, default: kernel }
+      sha256:        { description: artifact sha256, required: true }
+      exit_code:     { description: sandbox exit code, required: true }
+      stdout:        { description: sandbox stdout, required: false, default: '' }
+      stderr:        { description: sandbox stderr, required: false, default: '' }
+      step:          { description: pipeline step (qa), required: true }
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install --quiet requests
+
+      - name: Run QA critic
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TRACE_ID: ${{ github.event.inputs.trace_id }}
+          WORKSPACE_ID: ${{ github.event.inputs.workspace_id }}
+          TENANT: ${{ github.event.inputs.tenant || 'kernel' }}
+          SHA256: ${{ github.event.inputs.sha256 }}
+          EXIT_CODE: ${{ github.event.inputs.exit_code }}
+          STDOUT: ${{ github.event.inputs.stdout }}
+          STDERR: ${{ github.event.inputs.stderr }}
+          STEP: ${{ github.event.inputs.step }}
+        run: python agents/qa_agent.py
